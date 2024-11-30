@@ -12,16 +12,17 @@ series AS (
 ),
 placeholder_ints AS (
     SELECT
-        CAST(
-            CASE WHEN device_activity_datelist @> ARRAY[series.date_series]
+        CASE WHEN device_activity_datelist @> ARRAY[series.date_series]
             THEN CAST(POW(2, 32 - (curr_date - series.date_series)) AS BIGINT)
             ELSE 0 END
-            AS BIT(32)
-         ) AS placeholder_int,
+        AS placeholder_int,
         *
     FROM users
     CROSS JOIN series
 )
 
-select *
-from placeholder_ints
+SELECT
+    user_id,
+    CAST(CAST(SUM(placeholder_int) AS BIGINT) AS BIT(32)) AS device_activity
+FROM placeholder_ints
+GROUP BY user_id
