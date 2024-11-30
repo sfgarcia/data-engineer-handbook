@@ -9,13 +9,19 @@ series AS (
         (SELECT MAX(curr_date) FROM user_devices_cumulated),
         '1 day'::interval
     )::date AS date_series
+),
+placeholder_ints AS (
+    SELECT
+        CAST(
+            CASE WHEN device_activity_datelist @> ARRAY[series.date_series]
+            THEN CAST(POW(2, 32 - (curr_date - series.date_series)) AS BIGINT)
+            ELSE 0 END
+            AS BIT(32)
+         ) AS placeholder_int,
+        *
+    FROM users
+    CROSS JOIN series
 )
 
-SELECT
-    CASE WHEN device_activity_datelist @> ARRAY[series.date_series]
-        THEN POW(2, 32 - (curr_date - series.date_series))
-        ELSE 0
-    END AS placeholder_int,
-    *
-FROM users
-CROSS JOIN series
+select *
+from placeholder_ints
