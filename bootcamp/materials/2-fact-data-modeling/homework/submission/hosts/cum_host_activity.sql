@@ -1,4 +1,6 @@
---INSERT INTO host_activity_reduced
+--TRUNCATE TABLE host_activity_reduced;
+
+INSERT INTO host_activity_reduced
 
 WITH daily_agg AS (
     SELECT
@@ -7,7 +9,7 @@ WITH daily_agg AS (
         CAST(COUNT(*) AS INT) AS hits,
         CAST(COUNT(DISTINCT user_id) AS INT) AS unique_users
     FROM events
-    WHERE event_time::DATE = DATE('2023-01-01')
+    WHERE event_time::DATE = DATE('2023-01-03')
     GROUP BY 1, 2
 ),
 
@@ -35,3 +37,6 @@ SELECT
 FROM daily_agg d
 FULL OUTER JOIN yesterday y
     ON d.host = y.host;
+
+select * from host_activity_reduced
+limit 10;

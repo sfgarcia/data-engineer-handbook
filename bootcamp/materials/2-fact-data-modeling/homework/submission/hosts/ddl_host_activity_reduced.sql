@@ -2,5 +2,6 @@ CREATE TABLE host_activity_reduced (
     date_month DATE,
     host TEXT,
     hit_array INTEGER[],
-    unique_visitors INTEGER[]
+    unique_visitors INTEGER[],
+    PRIMARY KEY (date_month, host)
 );
