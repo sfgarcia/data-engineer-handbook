@@ -2,16 +2,18 @@
 
 WITH daily_agg AS (
     SELECT
-        DATE_TRUNC('month', event_time::DATE) AS date_month,
+        event_time::DATE AS curr_date,
         host,
-        COUNT(*) AS hits,
-        COUNT(DISTINCT user_id) AS unique_users
+        CAST(COUNT(*) AS INT) AS hits,
+        CAST(COUNT(DISTINCT user_id) AS INT) AS unique_users
     FROM events
     WHERE event_time::DATE = DATE('2023-01-01')
     GROUP BY 1, 2
 ),
-yesterday as (
+
+yesterday AS (
     SELECT
+        date_month,
         host,
         hit_array,
         unique_visitors
@@ -20,12 +22,16 @@ yesterday as (
 )
 
 SELECT
-    date_month,
+    COALESCE(DATE_TRUNC('month', d.curr_date), y.date_month) AS date_month,
     COALESCE(d.host, y.host) AS host,
-    CASE WHEN y.hit_array IS NULL THEN ARRAY[d.hits]
-        ELSE ARRAY[d.hits] || y.hit_array END AS hit_array,
-    CASE WHEN y.unique_visitors IS NULL THEN ARRAY[d.unique_users]
-        ELSE ARRAY[d.unique_users] || y.unique_visitors END AS unique_visitors
+    CASE WHEN y.hit_array IS NOT NULL
+        THEN y.hit_array || ARRAY[COALESCE(d.hits, 0)]
+        ELSE ARRAY_FILL(0, ARRAY[GREATEST(d.curr_date - y.date_month, 0)]) || ARRAY[COALESCE(d.hits, 0)]
+        END AS hit_array,
+    CASE WHEN y.unique_visitors IS NOT NULL
+        THEN y.unique_visitors || ARRAY[COALESCE(d.unique_users, 0)]
+        ELSE ARRAY_FILL(0, ARRAY[GREATEST(d.curr_date - y.date_month, 0)]) || ARRAY[COALESCE(d.unique_users, 0)]
+        END AS unique_visitors
 FROM daily_agg d
 FULL OUTER JOIN yesterday y
     ON d.host = y.host;
