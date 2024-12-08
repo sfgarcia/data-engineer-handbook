@@ -62,9 +62,7 @@ medal_matches_players_bucketed = spark.read.table(
 )
 
 
-match_full = match_details_bucketed.join(
-    matches_bucketed, on=["match_id"], how="inner"
-).join(matches_bucketed, on=["match_id"], how="inner")
+match_full = match_details_bucketed.join(matches_bucketed, on=["match_id"], how="inner")
 
 
 match_full.filter(
