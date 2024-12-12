@@ -27,14 +27,14 @@ spark.sql("""DROP TABLE IF EXISTS bootcamp.match_details_bucketed""")
 
 
 match_details.select("match_id", "player_gamertag", "player_total_kills").write.mode(
-    "append"
+    "overwrite"
 ).bucketBy(16, "match_id").saveAsTable("bootcamp.match_details_bucketed")
 
 
 spark.sql("""DROP TABLE IF EXISTS bootcamp.matches_bucketed""")
 
 
-matches.select("match_id", "mapid", "playlist_id").write.mode("append").bucketBy(
+matches.select("match_id", "mapid", "playlist_id").write.mode("overwrite").bucketBy(
     16, "match_id"
 ).saveAsTable("bootcamp.matches_bucketed")
 
@@ -44,7 +44,7 @@ spark.sql("""DROP TABLE IF EXISTS bootcamp.medal_matches_players_bucketed""")
 
 medal_matches_players.select(
     "match_id", "player_gamertag", "medal_id", "count"
-).write.mode("append").bucketBy(16, "match_id").saveAsTable(
+).write.mode("overwrite").bucketBy(16, "match_id").saveAsTable(
     "bootcamp.medal_matches_players_bucketed"
 )
 
@@ -83,9 +83,9 @@ medal_matches_players_bucketed.filter(
 
 
 avg_kills = match_full.groupBy("player_gamertag").agg(
-    F.avg("player_total_kills").alias("avg_kills")
+    F.coalesce(F.avg("player_total_kills", F.lit(0))).alias("avg_kills")
 )
-avg_kills = avg_kills.orderBy("avg_kills", ascending=False)
+avg_kills = avg_kills.orderBy("avg_kills", "player_gamertag", ascending=False)
 
 
 avg_kills.show()
@@ -105,8 +105,8 @@ map_count = match_full.groupBy("mapid").agg(
 )
 map_count = map_count.orderBy("map_count", ascending=False)
 
+map_count.show()
 
-matches_bucketed.show()
 
 ##### Medals metrics
 
@@ -123,7 +123,7 @@ medals_full = (
         how="inner",
     )
     .join(
-        F.broadcast(maps.select("mapid", "name")),
+        F.broadcast(maps.select("mapid", "name").withColumnRenamed("name", "map_name")),
         on=["mapid"],
         how="inner",
     )
@@ -152,6 +152,13 @@ sorted_medals_1.write.parquet("../../output")
 
 sorted_medals_2 = medals_full.sortWithinPartitions(
     "playlist_id", "mapid", "player_gamertag", "match_id"
+)
+
+
+sorted_medals_2.write.parquet("../../output")
+
+sorted_medals_2 = medals_full.sortWithinPartitions(
+    "player_gamertag", "playlist_id", "mapid", "match_id"
 )
 
 
