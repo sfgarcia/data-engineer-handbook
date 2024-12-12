@@ -18,6 +18,7 @@ medal_matches_players = spark.read.csv(
     "../../data/medals_matches_players.csv", header=True, inferSchema=True
 )
 medals = spark.read.csv("../../data/medals.csv", header=True, inferSchema=True)
+maps = spark.read.csv("../../data/maps.csv", header=True, inferSchema=True)
 
 #### Crear las tablas bucketizadas
 
@@ -110,14 +111,22 @@ matches_bucketed.show()
 ##### Medals metrics
 
 
-medals_full = medal_matches_players_bucketed.join(
-    F.broadcast(medals.select("medal_id", "name")),
-    on=["medal_id"],
-    how="inner",
-).join(
-    matches_bucketed,
-    on=["match_id"],
-    how="inner",
+medals_full = (
+    medal_matches_players_bucketed.join(
+        F.broadcast(medals.select("medal_id", "name")),
+        on=["medal_id"],
+        how="inner",
+    )
+    .join(
+        matches_bucketed,
+        on=["match_id"],
+        how="inner",
+    )
+    .join(
+        F.broadcast(maps.select("mapid", "name")),
+        on=["mapid"],
+        how="inner",
+    )
 )
 
 
@@ -133,12 +142,17 @@ ks_medals_count.show()
 #### Try different sorting strategies on medals_full
 
 
-sorted_medals = medals_full.sortWithinPartitions(
+sorted_medals_1 = medals_full.sortWithinPartitions(
     "mapid", "playlist_id", "player_gamertag", "match_id"
 )
 
 
-sorted_medals.write.parquet("../../output")
+sorted_medals_1.write.parquet("../../output")
 
 
-sorted_medals = medals_full.show()
+sorted_medals_2 = medals_full.sortWithinPartitions(
+    "playlist_id", "mapid", "player_gamertag", "match_id"
+)
+
+
+sorted_medals_2.write.parquet("../../output")
