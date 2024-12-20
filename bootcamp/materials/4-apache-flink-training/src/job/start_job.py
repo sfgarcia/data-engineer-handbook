@@ -36,7 +36,6 @@ def create_processed_events_sink_kafka(t_env):
             'format' = 'json'
         );
         """
-    print(sink_ddl)
     t_env.execute_sql(sink_ddl)
     return table_name
 
