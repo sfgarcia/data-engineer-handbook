@@ -3,13 +3,19 @@ from pyflink.table.udf import ScalarFunction, udf
 import os
 import json
 import requests
-from pyflink.table import EnvironmentSettings, DataTypes, TableEnvironment, StreamTableEnvironment
+from pyflink.table import (
+    EnvironmentSettings,
+    DataTypes,
+    TableEnvironment,
+    StreamTableEnvironment,
+)
+
 
 def create_processed_events_sink_kafka(t_env):
     table_name = "process_events_kafka"
     kafka_key = os.environ.get("KAFKA_WEB_TRAFFIC_KEY", "")
     kafka_secret = os.environ.get("KAFKA_WEB_TRAFFIC_SECRET", "")
-    sasl_config = f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_key}" password="{kafka_secret}";'
+    sasl_config = f'org.apache.flink.kafka.shaded.org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_key}" password="{kafka_secret}";'
     sink_ddl = f"""
         CREATE TABLE {table_name} (
             ip VARCHAR,
@@ -25,6 +31,7 @@ def create_processed_events_sink_kafka(t_env):
             'properties.ssl.endpoint.identification.algorithm' = '',
             'properties.group.id' = '{os.environ.get('KAFKA_GROUP')}',
             'properties.security.protocol' = 'SASL_SSL',
+            'properties.sasl.mechanism' = 'PLAIN',
             'properties.sasl.jaas.config' = '{sasl_config}',
             'format' = 'json'
         );
@@ -35,7 +42,7 @@ def create_processed_events_sink_kafka(t_env):
 
 
 def create_processed_events_sink_postgres(t_env):
-    table_name = 'processed_events'
+    table_name = "processed_events"
     sink_ddl = f"""
         CREATE TABLE {table_name} (
             ip VARCHAR,
@@ -56,29 +63,29 @@ def create_processed_events_sink_postgres(t_env):
     t_env.execute_sql(sink_ddl)
     return table_name
 
+
 class GetLocation(ScalarFunction):
-  def eval(self, ip_address):
-    url = "https://api.ip2location.io"
-    response = requests.get(url, params={
-        'ip': ip_address,
-        'key': os.environ.get("IP_CODING_KEY")
-    })
+    def eval(self, ip_address):
+        url = "https://api.ip2location.io"
+        response = requests.get(
+            url, params={"ip": ip_address, "key": os.environ.get("IP_CODING_KEY")}
+        )
 
-    if response.status_code != 200:
-        # Return empty dict if request failed
-        return json.dumps({})
+        if response.status_code != 200:
+            # Return empty dict if request failed
+            return json.dumps({})
 
-    data = json.loads(response.text)
+        data = json.loads(response.text)
 
-    # Extract the country and state from the response
-    # This might change depending on the actual response structure
-    country = data.get('country_code', '')
-    state = data.get('region_name', '')
-    city = data.get('city_name', '')
-    return json.dumps({'country': country, 'state': state, 'city': city})
+        # Extract the country and state from the response
+        # This might change depending on the actual response structure
+        country = data.get("country_code", "")
+        state = data.get("region_name", "")
+        city = data.get("city_name", "")
+        return json.dumps({"country": country, "state": state, "city": city})
+
 
 get_location = udf(GetLocation(), result_type=DataTypes.STRING())
-
 
 
 def create_events_source_kafka(t_env):
@@ -113,11 +120,12 @@ def create_events_source_kafka(t_env):
     t_env.execute_sql(source_ddl)
     return table_name
 
+
 def log_processing():
-    print('Starting Job!')
+    print("Starting Job!")
     # Set up the execution environment
     env = StreamExecutionEnvironment.get_execution_environment()
-    print('got streaming environment')
+    print("got streaming environment")
     env.enable_checkpointing(10 * 1000)
     env.set_parallelism(1)
 
@@ -129,23 +137,40 @@ def log_processing():
         # Create Kafka table
         source_table = create_events_source_kafka(t_env)
         postgres_sink = create_processed_events_sink_postgres(t_env)
-        print('loading into postgres')
+        kafka_sink = create_processed_events_sink_kafka(t_env)
+
+        print("loading into kafka")
         t_env.execute_sql(
             f"""
-                    INSERT INTO {postgres_sink}
-                    SELECT
-                        ip,
-                        event_timestamp,
-                        referrer,
-                        host,
-                        url,
-                        get_location(ip) as geodata
-                    FROM {source_table}
-                    """
+            INSERT INTO {kafka_sink}
+            SELECT
+                ip,
+                DATE_FORMAT(event_timestamp, 'yyyy-MM-dd HH:mm:ss') AS event_timestamp,
+                referrer,
+                host,
+                url,
+                get_location(ip) AS geodata
+            FROM {source_table}
+        """
+        )
+
+        print("loading into postgres")
+        t_env.execute_sql(
+            f"""
+            INSERT INTO {postgres_sink}
+            SELECT
+                ip,
+                event_timestamp,
+                referrer,
+                host,
+                url,
+                get_location(ip) as geodata
+            FROM {source_table}
+        """
         ).wait()
     except Exception as e:
         print("Writing records from Kafka to JDBC failed:", str(e))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     log_processing()
