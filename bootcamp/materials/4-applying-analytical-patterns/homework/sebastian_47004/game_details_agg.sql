@@ -26,7 +26,7 @@ visitor_team_join AS (
         g.season,
         g.game_id,
         gd.team_id,
-        1- g.home_team_wins AS team_wins,
+        1 - g.home_team_wins AS team_wins,
         player_name,
         gd.scored_points
     FROM games g
@@ -40,6 +40,19 @@ union_teams AS (
     UNION ALL
     SELECT *
     FROM visitor_team_join
+),
+one_team_wins_for_all_players AS (
+    SELECT
+        season,
+        game_id,
+        team_id,
+        player_name,
+        CASE
+            WHEN player_name = FIRST_VALUE(player_name) OVER (PARTITION BY season, game_id, team_id) THEN team_wins
+            ELSE 0
+        END AS team_wins,
+        scored_points
+    FROM union_teams
 )
 
 SELECT
@@ -53,23 +66,35 @@ SELECT
     player_name,
     SUM(team_wins) AS match_wins,
     SUM(scored_points) AS total_points
-FROM union_teams
+FROM one_team_wins_for_all_players
 GROUP BY GROUPING SETS (
     (team_id), 
     (player_name, team_id),
     (season, player_name)
 );
 
+-- Who scored the most points playing for one team?
 select *
 from game_details_agg
-
-
-select
-    team_abbreviation,
-    player_name
-from game_details
+where aggregation_level = 'team_id__player_name'
+order by total_points desc
 limit 10;
 
+-- Who scored the most points in one season?
+select *
+from game_details_agg
+where aggregation_level = 'season__player_name'
+order by total_points desc
+limit 10;
+
+-- Which team has won the most games?
+select *
+from game_details_agg
+where aggregation_level = 'team_id'
+order by match_wins desc
+limit 10;
+
+-- Queries to explore the tables
 select *
 from game_details
 where game_id = 22200477
