@@ -6,13 +6,13 @@ CREATE TYPE player_state AS ENUM (
     'Stayed Retired'
 );
 
-
+drop table if exists players_state_tracking;
 CREATE TABLE players_state_tracking (
      player_name TEXT,
-     first_active_year INT,
-     last_active_year INT,
+     first_active_season INT,
+     last_active_season INT,
      player_state player_state,
-     years_active INT[],
-     year INT,
-     PRIMARY KEY (player_name, year)
+     seasons_active INT[],
+     season INT,
+     PRIMARY KEY (player_name, season)
  );
