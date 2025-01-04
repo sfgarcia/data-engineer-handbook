@@ -21,12 +21,13 @@ CREATE TABLE IF NOT EXISTS processed_events_aggregated_source (
     num_hits BIGINT
 );
 
+DROP TABLE IF EXISTS aggregated_sessionazed_events;
 CREATE TABLE IF NOT EXISTS aggregated_sessionazed_events (
+    event_hour TIMESTAMP,
     host VARCHAR,
-    avg_events_per_session REAL,
-    total_sessions BIGINT,
-    total_events BIGINT,
-    PRIMARY KEY (host)
+    ip VARCHAR,
+    events_in_session BIGINT,
+    PRIMARY KEY (event_hour, host, ip)
 );
 
 select *

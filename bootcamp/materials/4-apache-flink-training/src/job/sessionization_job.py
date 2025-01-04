@@ -12,11 +12,11 @@ def create_aggregated_events_sink_postgres(t_env):
     table_name = "aggregated_sessionazed_events"
     sink_ddl = f"""
         CREATE TABLE {table_name} (
+            event_hour TIMESTAMP,
             host VARCHAR,
-            avg_events_per_session DOUBLE,
-            total_sessions BIGINT,
-            total_events BIGINT,
-            PRIMARY KEY (host) NOT ENFORCED
+            ip VARCHAR,
+            events_in_session BIGINT,
+            PRIMARY KEY (event_hour, host, ip) NOT ENFORCED
         ) WITH (
             'connector' = 'jdbc',
             'url' = '{os.environ.get("POSTGRES_URL")}',
@@ -65,7 +65,7 @@ def create_processed_events_source_kafka(t_env):
 def log_aggregation():
     # Set up the execution environment
     env = StreamExecutionEnvironment.get_execution_environment()
-    env.enable_checkpointing(10 * 10_000)
+    env.enable_checkpointing(10 * 1_000)
     env.set_parallelism(3)
 
     # Set up the table environment
@@ -91,15 +91,7 @@ def log_aggregation():
         col("host").count.alias("events_in_session"),
     )
 
-    # Then aggregate the sessions by host to get averages
-    result = sessions.group_by(col("host")).select(
-        col("host"),
-        col("events_in_session").avg.alias("avg_events_per_session"),
-        col("ip").count.alias("total_sessions"),
-        col("events_in_session").sum.alias("total_events"),
-    )
-
-    result.execute_insert(aggregated_table).wait()
+    sessions.execute_insert(aggregated_table).wait()
 
 
 if __name__ == "__main__":
