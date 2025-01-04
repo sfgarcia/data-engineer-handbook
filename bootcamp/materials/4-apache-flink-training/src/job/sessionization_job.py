@@ -7,16 +7,24 @@ from pyflink.table import (
 from pyflink.table.expressions import lit, col
 from pyflink.table.window import Session
 
+# Setup instructions for the Flink job
+# 1. Start docker engine
+# 2. Open one terminal in this directory: 1-dimensional-data-modeling
+# 3. Run `make up` to start Postgres
+# 4. Open another terminal in this directory: 4-apache-flink-training
+# 5. Run `make up` to start Flink
+# 6. Run `make sessionization_job` to trigger the Flink job
+# 7, Watch the job in the Flink dashboard: http://localhost:8081
+
 
 def create_aggregated_events_sink_postgres(t_env):
-    table_name = "aggregated_sessionazed_events"
+    table_name = "aggregated_sessionized_events"
     sink_ddl = f"""
         CREATE TABLE {table_name} (
-            event_hour TIMESTAMP,
+            session_start TIMESTAMP,
             host VARCHAR,
             ip VARCHAR,
-            events_in_session BIGINT,
-            PRIMARY KEY (event_hour, host, ip) NOT ENFORCED
+            events_in_session BIGINT
         ) WITH (
             'connector' = 'jdbc',
             'url' = '{os.environ.get("POSTGRES_URL")}',
@@ -33,7 +41,7 @@ def create_aggregated_events_sink_postgres(t_env):
 def create_processed_events_source_kafka(t_env):
     kafka_key = os.environ.get("KAFKA_WEB_TRAFFIC_KEY", "")
     kafka_secret = os.environ.get("KAFKA_WEB_TRAFFIC_SECRET", "")
-    table_name = "process_events_kafka"
+    table_name = "process_events"
     pattern = "yyyy-MM-dd''T''HH:mm:ss.SSS''Z''"
     sink_ddl = f"""
         CREATE TABLE {table_name} (
@@ -85,7 +93,7 @@ def log_aggregation():
 
     # Group by window, IP, and host to get individual sessions
     sessions = windowed.group_by(col("w"), col("ip"), col("host")).select(
-        col("w").start.alias("event_hour"),
+        col("w").start.alias("session_start"),
         col("host"),
         col("ip"),
         col("host").count.alias("events_in_session"),

@@ -21,17 +21,18 @@ CREATE TABLE IF NOT EXISTS processed_events_aggregated_source (
     num_hits BIGINT
 );
 
-DROP TABLE IF EXISTS aggregated_sessionazed_events;
-CREATE TABLE IF NOT EXISTS aggregated_sessionazed_events (
-    event_hour TIMESTAMP,
+DROP TABLE IF EXISTS aggregated_sessionized_events;
+CREATE TABLE IF NOT EXISTS aggregated_sessionized_events (
+    session_start TIMESTAMP,
     host VARCHAR,
     ip VARCHAR,
-    events_in_session BIGINT,
-    PRIMARY KEY (event_hour, host, ip)
+    events_in_session BIGINT
+    --PRIMARY KEY (event_hour, host, ip)
 );
 
 select *
-from processed_events;
+from processed_events
+where host is null;
 
 select *
 from processed_events_aggregated;
@@ -40,5 +41,5 @@ select *
 from processed_events_aggregated_source;
 
 select *
-from aggregated_sessionazed_events;
+from aggregated_sessionized_events;
 
